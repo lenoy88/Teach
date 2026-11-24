@@ -53,6 +53,9 @@
     }
     button.secondary { background: #e9eef8; color: #17233b; }
     button.danger { background: #a93232; }
+    .password-row { display: flex; gap: 8px; }
+    .password-row input { flex: 1; min-width: 0; }
+    .password-row button { flex: 0 0 auto; }
     .actions { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 18px; }
     .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 16px; }
     .note { color: #65738a; font-size: 14px; }
@@ -87,8 +90,13 @@
       <form id="loginForm">
         <label for="loginEmail">Email</label>
         <input id="loginEmail" type="email" autocomplete="username" required>
+
         <label for="loginPassword">Password</label>
-        <input id="loginPassword" type="password" autocomplete="current-password" required>
+        <div class="password-row">
+          <input id="loginPassword" type="password" autocomplete="current-password" required>
+          <button id="togglePassword" class="secondary" type="button" aria-pressed="false">Show</button>
+        </div>
+
         <div class="actions"><button type="submit">Sign in</button></div>
         <p id="loginMessage" class="error" role="status"></p>
       </form>
@@ -124,8 +132,10 @@
               <input id="quizScore" type="number" min="0" max="100" placeholder="Leave blank if none">
             </div>
           </div>
+
           <label for="weeklyNotes">Weekly assessment notes</label>
           <textarea id="weeklyNotes" placeholder="Record areas where the student may need support"></textarea>
+
           <div class="actions">
             <button type="submit">Save student record</button>
             <button id="clearBtn" type="button" class="secondary">Clear</button>
@@ -157,7 +167,8 @@
     import { firebaseConfig, teacherEmail } from "./firebase-config.js";
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
-      getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+      getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut,
+      setPersistence, inMemoryPersistence
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import {
       getFirestore, collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp
@@ -175,9 +186,18 @@
     const studentsTable = document.getElementById("studentsTable");
     const signOutBtn = document.getElementById("signOutBtn");
     const studentForm = document.getElementById("studentForm");
+    const passwordInput = document.getElementById("loginPassword");
+    const togglePassword = document.getElementById("togglePassword");
 
     let editingId = null;
     let records = [];
+
+    togglePassword.addEventListener("click", () => {
+      const showPassword = passwordInput.type === "password";
+      passwordInput.type = showPassword ? "text" : "password";
+      togglePassword.textContent = showPassword ? "Hide" : "Show";
+      togglePassword.setAttribute("aria-pressed", String(showPassword));
+    });
 
     function escapeHtml(value = "") {
       return String(value).replace(/[&<>"']/g, character => ({
@@ -203,6 +223,7 @@
         listMessage.textContent = records.length
           ? `${records.length} student record(s).`
           : "No student records yet.";
+
         studentsTable.innerHTML = records.map(student => `
           <tr>
             <td>${escapeHtml(student.name)}</td>
@@ -229,29 +250,11 @@
         await signInWithEmailAndPassword(
           auth,
           document.getElementById("loginEmail").value.trim(),
-          document.getElementById("loginPassword").value
+          passwordInput.value
         );
       } catch (error) {
         loginMessage.textContent = `Sign-in failed: ${error.message}`;
       }
-    });
-
-    onAuthStateChanged(auth, async user => {
-      if (!user) {
-        loginCard.hidden = false;
-        dashboard.hidden = true;
-        signOutBtn.hidden = true;
-        return;
-      }
-      if ((user.email || "").toLowerCase() !== teacherEmail.toLowerCase()) {
-        await signOut(auth);
-        loginMessage.textContent = "This account is not the teacher account.";
-        return;
-      }
-      loginCard.hidden = true;
-      dashboard.hidden = false;
-      signOutBtn.hidden = false;
-      await loadStudents();
     });
 
     signOutBtn.addEventListener("click", () => signOut(auth));
@@ -317,6 +320,34 @@
           listMessage.textContent = `Could not delete: ${error.message}`;
         }
       }
+    });
+
+    // Use memory-only sign-in and clear any remembered sign-in on each page load.
+    try {
+      await setPersistence(auth, inMemoryPersistence);
+      await signOut(auth);
+    } catch (error) {
+      loginMessage.textContent = `Authentication setup error: ${error.message}`;
+    }
+
+    onAuthStateChanged(auth, async user => {
+      if (!user) {
+        loginCard.hidden = false;
+        dashboard.hidden = true;
+        signOutBtn.hidden = true;
+        return;
+      }
+
+      if ((user.email || "").toLowerCase() !== teacherEmail.toLowerCase()) {
+        await signOut(auth);
+        loginMessage.textContent = "This account is not the teacher account.";
+        return;
+      }
+
+      loginCard.hidden = true;
+      dashboard.hidden = false;
+      signOutBtn.hidden = false;
+      await loadStudents();
     });
   </script>
 </body>
