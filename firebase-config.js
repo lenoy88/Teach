@@ -1,5 +1,5 @@
 export const firebaseConfig = {
-  apiKey: "AIzaSyBerv5iN1oCSLFvjsSmBL-qnNDwyDMbGog",
+  apiKey: "PASTE_THE_EXACT_API_KEY_FROM_FIREBASE_HERE",
   authDomain: "brightpath-learning-6b819.firebaseapp.com",
   projectId: "brightpath-learning-6b819",
   storageBucket: "brightpath-learning-6b819.firebasestorage.app",
